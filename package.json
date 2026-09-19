@@ -1,0 +1,26 @@
+{
+    "name": "restaurant-platform",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+          "dev": "next dev",
+          "build": "next build",
+          "start": "next start",
+          "typecheck": "tsc --noEmit",
+          "create-restaurant": "node scripts/create-restaurant.mjs"
+    },
+    "dependencies": {
+          "@supabase/supabase-js": "^2.45.4",
+          "next": "14.2.35",
+          "pdfkit": "^0.15.0",
+          "react": "^18.3.1",
+          "react-dom": "^18.3.1"
+    },
+    "devDependencies": {
+          "@types/node": "^20.14.0",
+          "@types/pdfkit": "^0.13.4",
+          "@types/react": "^18.3.5",
+          "@types/react-dom": "^18.3.0",
+          "typescript": "^5.5.4"
+    }
+}
