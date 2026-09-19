@@ -5,7 +5,13 @@ import Link from "next/link";
 import { useCart } from "./CartProvider";
 import type { Restaurant } from "@/lib/tenant";
 
-type Category = { id: string; name: string; sort_order: number };
+type Category = {
+  id: string;
+  name: string;
+  sort_order: number;
+  background_color: string | null;
+  text_color: string | null;
+};
 type Item = {
   id: string;
   category_id: string;
@@ -20,6 +26,18 @@ type Modifier = { id: string; name: string; price: number };
 
 function formatPrice(amount: number, currency: string) {
   return `${currency} ${amount.toLocaleString()}`;
+}
+
+// Relative luminance of a "#rrggbb" color, used only to decide whether
+// this section's background is dark enough to need the light/inverted
+// watermark logo instead of the default dark ink one.
+function isDarkColor(hex: string): boolean {
+  const clean = hex.replace("#", "");
+  const r = parseInt(clean.substring(0, 2), 16);
+  const g = parseInt(clean.substring(2, 4), 16);
+  const b = parseInt(clean.substring(4, 6), 16);
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luminance < 140;
 }
 
 export default function MenuClient({
@@ -41,6 +59,11 @@ export default function MenuClient({
   const [openItem, setOpenItem] = useState<Item | null>(null);
   const cart = useCart();
 
+  const activeCat = categories.find((c) => c.id === activeCategory) ?? null;
+  const sectionBg = activeCat?.background_color || restaurant.background_color;
+  const sectionText = activeCat?.text_color || restaurant.text_color;
+  const sectionIsDark = isDarkColor(sectionBg);
+
   const visibleItems = useMemo(
     () => items.filter((i) => i.category_id === activeCategory),
     [items, activeCategory]
@@ -56,62 +79,86 @@ export default function MenuClient({
         </div>
       </header>
 
+      {/* This section's own background/text -- switches with the active
+          category to match that page's look in the printed menu. Covers
+          the tenant-wide theme underneath while this page is showing. */}
       <div
-        style={{
-          display: "flex",
-          gap: 8,
-          overflowX: "auto",
-          padding: "12px 16px",
-          background: "var(--bg)",
-        }}
+        key={activeCategory}
+        className="menu-section"
+        style={{ background: sectionBg, color: sectionText }}
       >
-        {categories.map((c) => (
-          <button
-            key={c.id}
-            className={`chip ${c.id === activeCategory ? "active" : ""}`}
-            onClick={() => setActiveCategory(c.id)}
-          >
-            {c.name}
-          </button>
-        ))}
-      </div>
+        {restaurant.logo_url && (
+          <img
+            src={restaurant.logo_url}
+            alt=""
+            className="menu-watermark"
+            style={sectionIsDark ? { filter: "brightness(0) invert(1)" } : undefined}
+          />
+        )}
 
-      <div className="container" style={{ paddingBottom: cart.itemCount ? 96 : 16 }}>
-        {visibleItems.map((item) => {
-          const itemVariants = variants.filter((v) => v.menu_item_id === item.id);
-          const fromPrice = itemVariants.length
-            ? Math.min(...itemVariants.map((v) => v.price))
-            : 0;
-          return (
-            <div key={item.id} className="card" style={{ display: "flex", justifyContent: "space-between" }}>
-              <div>
-                <div style={{ fontWeight: 600 }}>{item.name}</div>
-                {item.description && (
-                  <div style={{ fontSize: 13, color: "var(--muted)" }}>{item.description}</div>
-                )}
-                <div style={{ fontSize: 14, color: "var(--muted)", marginTop: 4 }}>
-                  {itemVariants.map((v) => formatPrice(v.price, restaurant.currency)).join(" / ")}
+        <div className="tabs">
+          {categories.map((c) => (
+            <button
+              key={c.id}
+              className={`tab ${c.id === activeCategory ? "active" : ""}`}
+              onClick={() => setActiveCategory(c.id)}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+
+        <div className="container" style={{ paddingBottom: cart.itemCount ? 96 : 16, position: "relative" }}>
+          {activeCat && <h2 className="section-title">{activeCat.name}</h2>}
+
+          {visibleItems.map((item) => {
+            const itemModifierNames = modifiers
+              .filter((m) => itemModifiers.some((link) => link.menu_item_id === item.id && link.modifier_id === m.id))
+              .map((m) => m.name);
+            const extrasPreview =
+              itemModifierNames.length > 3
+                ? `${itemModifierNames.slice(0, 3).join(", ")} +${itemModifierNames.length - 3} more`
+                : itemModifierNames.join(", ");
+
+            return (
+              <div key={item.id} className="card" style={{ display: "flex", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ fontWeight: 600 }}>{item.name}</div>
+                  {item.description && (
+                    <div style={{ fontSize: 13, color: "var(--muted)" }}>{item.description}</div>
+                  )}
+                  <div style={{ fontSize: 14, color: "var(--muted)", marginTop: 4 }}>
+                    {variants
+                      .filter((v) => v.menu_item_id === item.id)
+                      .map((v) => formatPrice(v.price, restaurant.currency))
+                      .join(" / ")}
+                  </div>
+                  {extrasPreview && (
+                    <div style={{ fontSize: 12, color: "var(--brand)", marginTop: 6, fontWeight: 600 }}>
+                      + Extras: {extrasPreview}
+                    </div>
+                  )}
                 </div>
+                <button
+                  onClick={() => setOpenItem(item)}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    border: "none",
+                    background: "var(--brand)",
+                    color: "white",
+                    fontSize: 18,
+                    flexShrink: 0,
+                    alignSelf: "center",
+                  }}
+                >
+                  +
+                </button>
               </div>
-              <button
-                onClick={() => setOpenItem(item)}
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: "50%",
-                  border: "none",
-                  background: "var(--brand)",
-                  color: "white",
-                  fontSize: 18,
-                  flexShrink: 0,
-                  alignSelf: "center",
-                }}
-              >
-                +
-              </button>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       {cart.itemCount > 0 && (
