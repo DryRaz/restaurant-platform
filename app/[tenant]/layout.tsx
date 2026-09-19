@@ -46,6 +46,7 @@ export default async function TenantLayout({
           "--font-body": restaurant.body_font
             ? `"${restaurant.body_font}", var(--font-body-fallback)`
             : "var(--font-body-fallback)",
+          ...(restaurant.logo_url ? { "--logo-url": `url("${restaurant.logo_url}")` } : {}),
         } as React.CSSProperties
       }
     >
