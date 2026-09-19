@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
   const { data: items } = orderIds.length
     ? await supabase
         .from("order_items")
-        .select("id, order_id, item_name, variant_label, unit_price, quantity")
+        .select("id, order_id, item_name, variant_label, unit_price, quantity, notes")
         .in("order_id", orderIds)
     : { data: [] };
 
@@ -92,6 +92,9 @@ export async function GET(req: NextRequest) {
         doc.fontSize(9).fillColor("#666").text(
           `      + ${mod.name}${mod.price > 0 ? ` (+${currency} ${mod.price})` : ""}`
         );
+      }
+      if (item.notes) {
+        doc.fontSize(9).fillColor("#666").text(`      note: ${item.notes}`);
       }
     }
     doc.moveDown(0.5);
