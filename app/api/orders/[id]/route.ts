@@ -22,7 +22,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   const { data: items } = await supabase
     .from("order_items")
-    .select("id, item_name, variant_label, unit_price, quantity")
+    .select("id, item_name, variant_label, unit_price, quantity, notes")
     .eq("order_id", order.id);
 
   const { data: modifiers } = await supabase
