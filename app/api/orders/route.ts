@@ -9,6 +9,7 @@ type IncomingLine = {
   unitPrice: number;
   quantity: number;
   modifiers: { id: string; name: string; price: number }[];
+  notes?: string;
 };
 
 export async function POST(req: NextRequest) {
@@ -68,6 +69,7 @@ export async function POST(req: NextRequest) {
         variant_label: line.variantLabel,
         unit_price: line.unitPrice,
         quantity: line.quantity,
+        notes: line.notes || null,
       })
       .select("id")
       .single();

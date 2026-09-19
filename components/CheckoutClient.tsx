@@ -57,12 +57,17 @@ export default function CheckoutClient({ restaurant }: { restaurant: Restaurant 
       <div className="card">
         <div style={{ fontWeight: 600, marginBottom: 8 }}>Order summary</div>
         {cart.lines.map((line) => (
-          <div key={line.key} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0" }}>
-            <span>
-              {line.quantity}&times; {line.name}
-              {line.variantLabel ? ` (${line.variantLabel})` : ""}
-            </span>
-            <span>{formatPrice(lineTotal(line), restaurant.currency)}</span>
+          <div key={line.key} style={{ padding: "6px 0" }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>
+                {line.quantity}&times; {line.name}
+                {line.variantLabel ? ` (${line.variantLabel})` : ""}
+              </span>
+              <span>{formatPrice(lineTotal(line), restaurant.currency)}</span>
+            </div>
+            {line.notes && (
+              <div style={{ fontSize: 13, color: "var(--muted)", fontStyle: "italic" }}>{line.notes}</div>
+            )}
           </div>
         ))}
       </div>

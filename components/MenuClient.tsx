@@ -49,8 +49,11 @@ export default function MenuClient({
   return (
     <div>
       <header className="header">
-        <h1>{restaurant.name.toUpperCase()}</h1>
-        <p>Order online &middot; Pay with M-Pesa</p>
+        {restaurant.logo_url && <img src={restaurant.logo_url} alt="" className="logo" />}
+        <div>
+          <h1>{restaurant.name.toUpperCase()}</h1>
+          <p>Order online &middot; Pay with M-Pesa</p>
+        </div>
       </header>
 
       <div
@@ -151,7 +154,9 @@ function ItemModal({
   const [variantId, setVariantId] = useState(variants[0]?.id ?? "");
   const [selectedModifiers, setSelectedModifiers] = useState<string[]>([]);
   const [quantity, setQuantity] = useState(1);
+  const [notes, setNotes] = useState("");
   const cart = useCart();
+  const needsChoice = /choice|choose|pick one|tell us/i.test(item.description || "");
 
   const variant = variants.find((v) => v.id === variantId);
   const chosenModifiers = modifiers.filter((m) => selectedModifiers.includes(m.id));
@@ -172,6 +177,7 @@ function ItemModal({
         variantLabel: variant.label,
         unitPrice: variant.price,
         modifiers: chosenModifiers.map((m) => ({ id: m.id, name: m.name, price: m.price })),
+        notes,
       },
       quantity
     );
@@ -196,6 +202,22 @@ function ItemModal({
         style={{ background: "var(--bg)", borderRadius: "16px 16px 0 0", margin: 0, width: "100%" }}
       >
         <h2>{item.name}</h2>
+        {item.description && (
+          <p style={{ fontSize: 13, color: "var(--muted)", marginTop: -8 }}>{item.description}</p>
+        )}
+
+        {needsChoice && (
+          <div style={{ fontWeight: 600, margin: "4px 0 6px" }}>
+            Tell us your choices <span style={{ fontWeight: 400, color: "var(--muted)" }}>(required)</span>
+          </div>
+        )}
+        <textarea
+          className="notes-field"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder={needsChoice ? "e.g. Starter 1, Main 4, Iced tea" : "Notes for the kitchen (optional)"}
+          style={needsChoice ? { borderColor: "var(--brand)", marginBottom: 12 } : { marginBottom: 12 }}
+        />
 
         {variants.length > 0 && (
           <>
@@ -246,7 +268,12 @@ function ItemModal({
             +
           </button>
           <div style={{ flex: 1 }} />
-          <button className="btn-primary" style={{ width: "auto" }} onClick={handleAdd} disabled={!variant}>
+          <button
+            className="btn-primary"
+            style={{ width: "auto" }}
+            onClick={handleAdd}
+            disabled={!variant || (needsChoice && !notes.trim())}
+          >
             Add &middot; {formatPrice(lineUnitPrice * quantity, restaurant.currency)}
           </button>
         </div>

@@ -42,6 +42,13 @@ export default function CartClient({ restaurant }: { restaurant: Restaurant }) {
               Remove
             </button>
           </div>
+          <textarea
+            className="notes-field"
+            value={line.notes}
+            onChange={(e) => cart.setNotes(line.key, e.target.value)}
+            placeholder="Notes for the kitchen (optional)"
+            style={{ marginTop: 10 }}
+          />
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
             <button className="chip" onClick={() => cart.setQuantity(line.key, line.quantity - 1)}>
               &minus;
