@@ -44,9 +44,30 @@ h3 {
    is what actually paints the tenant's background/text color -- body
    itself stays a plain, colorless ancestor. */
 .tenant-theme {
+  position: relative;
   min-height: 100vh;
   background-color: var(--bg);
   color: var(--text);
+}
+
+/* Subtle full-page logo watermark, one large centered mark that stays
+   put behind whatever page is showing (position: fixed, so it doesn't
+   scroll away). --logo-url is only set when the restaurant has a
+   logo_url (see app/[tenant]/layout.tsx); falls back to "none"
+   otherwise. Used on every page except the menu browser, which paints
+   its own (see .menu-watermark) so it can match the active category's
+   color scheme. */
+.tenant-theme::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: var(--logo-url, none);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: min(70vw, 520px);
+  opacity: 0.06;
+  z-index: 0;
 }
 
 /* Optional named background textures, layered under a tenant's --bg
@@ -114,11 +135,14 @@ h3 {
 }
 
 .card {
-  background: var(--card);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  color: #1a1a1a;
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .btn-primary {
@@ -141,6 +165,7 @@ h3 {
   border-radius: 999px;
   padding: 8px 16px;
   background: white;
+  color: #1a1a1a;
   font-size: 14px;
   white-space: nowrap;
 }
@@ -173,4 +198,72 @@ h3 {
   font-size: 14px;
   resize: vertical;
   min-height: 44px;
+}
+
+/* The menu browser's own section: background/text color switch with
+   the active category (see MenuClient), matching that category's page
+   in the printed menu. Remounted (key={activeCategory}) on every tab
+   click, which re-triggers this fade so the switch reads as a
+   deliberate change of "page", not a content reflow. */
+.menu-section {
+  position: relative;
+  min-height: calc(100vh - 84px);
+  overflow: hidden;
+  animation: menu-section-fade 0.25s ease;
+}
+
+@keyframes menu-section-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.menu-watermark {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(85vw, 560px);
+  height: min(85vw, 560px);
+  object-fit: contain;
+  opacity: 0.07;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.tabs {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 16px;
+}
+
+.tab {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.18);
+  color: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  font-family: var(--font-body);
+}
+
+.tab.active {
+  background: #ffffff;
+  color: var(--text);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.section-title {
+  margin: 4px 0 18px;
+  font-size: 24px;
 }
