@@ -11,12 +11,14 @@ export type CartLine = {
   unitPrice: number;
   quantity: number;
   modifiers: CartModifier[];
+  notes: string;
 };
 
 type CartContextValue = {
   lines: CartLine[];
   addLine: (line: Omit<CartLine, "quantity">, quantity: number) => void;
   setQuantity: (key: string, quantity: number) => void;
+  setNotes: (key: string, notes: string) => void;
   removeLine: (key: string) => void;
   clear: () => void;
   total: number;
@@ -74,6 +76,10 @@ export function CartProvider({ tenant, children }: { tenant: string; children: R
       );
     };
 
+    const setNotes: CartContextValue["setNotes"] = (key, notes) => {
+      setLines((prev) => prev.map((l) => (l.key === key ? { ...l, notes } : l)));
+    };
+
     const removeLine: CartContextValue["removeLine"] = (key) => {
       setLines((prev) => prev.filter((l) => l.key !== key));
     };
@@ -81,7 +87,7 @@ export function CartProvider({ tenant, children }: { tenant: string; children: R
     const total = lines.reduce((sum, l) => sum + lineTotal(l), 0);
     const itemCount = lines.reduce((sum, l) => sum + l.quantity, 0);
 
-    return { lines, addLine, setQuantity, removeLine, clear: () => setLines([]), total, itemCount };
+    return { lines, addLine, setQuantity, setNotes, removeLine, clear: () => setLines([]), total, itemCount };
   }, [lines]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

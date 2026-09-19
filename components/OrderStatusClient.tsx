@@ -11,6 +11,7 @@ type OrderItem = {
   unit_price: number;
   quantity: number;
   modifiers: { name: string; price: number }[];
+  notes: string | null;
 };
 
 type Order = {
@@ -153,6 +154,9 @@ export default function OrderStatusClient({ restaurant, orderId }: { restaurant:
                 {m.price > 0 ? ` (+${formatPrice(m.price, restaurant.currency)})` : ""}
               </div>
             ))}
+            {item.notes && (
+              <div style={{ fontSize: 13, color: "var(--muted)", fontStyle: "italic" }}>Note: {item.notes}</div>
+            )}
           </div>
         ))}
         <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, paddingTop: 10 }}>

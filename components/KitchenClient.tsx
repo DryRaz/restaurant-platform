@@ -200,7 +200,13 @@ function OrderCard({
   onAdvance: () => void;
 }) {
   const [items, setItems] = useState<
-    { item_name: string; variant_label: string | null; quantity: number; modifiers: { name: string; price: number }[] }[]
+    {
+      item_name: string;
+      variant_label: string | null;
+      quantity: number;
+      modifiers: { name: string; price: number }[];
+      notes: string | null;
+    }[]
   >([]);
   const supabase = supabaseBrowser();
 
@@ -208,7 +214,7 @@ function OrderCard({
     async function load() {
       const { data: orderItems } = await supabase
         .from("order_items")
-        .select("id, item_name, variant_label, quantity")
+        .select("id, item_name, variant_label, quantity, notes")
         .eq("order_id", order.id);
       const ids = (orderItems || []).map((i) => i.id);
       const { data: modifiers } = ids.length
@@ -221,6 +227,7 @@ function OrderCard({
           variant_label: i.variant_label,
           quantity: i.quantity,
           modifiers: (modifiers || []).filter((m) => m.order_item_id === i.id),
+          notes: i.notes,
         }))
       );
     }
@@ -249,6 +256,9 @@ function OrderCard({
               + {m.name}
             </div>
           ))}
+          {item.notes && (
+            <div style={{ fontWeight: 700, color: "var(--danger)", fontSize: 14 }}>📝 {item.notes}</div>
+          )}
         </div>
       ))}
       {nextAction && (
