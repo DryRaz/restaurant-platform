@@ -13,6 +13,9 @@ export type Restaurant = {
     heading_font: string | null;
     body_font: string | null;
     texture: "none" | "linen";
+    payment_type: "till" | "paybill";
+    payment_number: string | null;
+    payment_account: string | null;
     status: "trial" | "active" | "suspended";
 };
 
@@ -26,7 +29,7 @@ export async function getRestaurantBySlug(slug: string): Promise<Restaurant | nu
     const { data, error } = await supabase
       .from("restaurants")
       .select(
-        "id, slug, name, currency, timezone, logo_url, primary_color, background_color, text_color, heading_font, body_font, texture, status"
+        "id, slug, name, currency, timezone, logo_url, primary_color, background_color, text_color, heading_font, body_font, texture, payment_type, payment_number, payment_account, status"
       )
       .eq("slug", slug)
       .maybeSingle();

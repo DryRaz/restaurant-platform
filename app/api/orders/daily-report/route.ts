@@ -40,14 +40,23 @@ export async function GET(req: NextRequest) {
 
   const timezone = restaurant?.timezone || "Africa/Nairobi";
   const todayInTz = new Date().toLocaleDateString("en-CA", { timeZone: timezone }); // YYYY-MM-DD
-  const startOfDay = new Date(`${todayInTz}T00:00:00`);
-  const endOfDay = new Date(`${todayInTz}T23:59:59.999`);
+  // Midnight in the restaurant's own timezone, as a UTC instant. (Parsing
+  // "YYYY-MM-DDT00:00:00" here would use the server's timezone, which is UTC
+  // on Vercel, and shift the whole day window by the restaurant's UTC offset.)
+  const utcGuess = new Date(`${todayInTz}T00:00:00Z`);
+  const offsetMs =
+    new Date(utcGuess.toLocaleString("en-US", { timeZone: timezone })).getTime() -
+    new Date(utcGuess.toLocaleString("en-US", { timeZone: "UTC" })).getTime();
+  const startOfDay = new Date(utcGuess.getTime() - offsetMs);
+  const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000 - 1);
 
   const { data: orders } = await supabase
     .from("orders")
-    .select("id, order_number, customer_name, total, created_at")
+    .select("id, order_number, customer_name, total, mpesa_receipt_number, created_at")
     .eq("restaurant_id", restaurantId)
-    .eq("status", "paid")
+    // Everything that has been paid, including orders the kitchen has already
+    // moved on to preparing / ready / completed. Unpaid orders are excluded.
+    .in("status", ["paid", "preparing", "ready", "completed"])
     .gte("created_at", startOfDay.toISOString())
     .lte("created_at", endOfDay.toISOString())
     .order("created_at");
@@ -82,6 +91,9 @@ export async function GET(req: NextRequest) {
         order.total
       ).toLocaleString()}  (${new Date(order.created_at).toLocaleTimeString("en-GB", { timeZone: timezone })})`
     );
+    if (order.mpesa_receipt_number) {
+      doc.fontSize(9).fillColor("#666").text(`   M-Pesa code: ${order.mpesa_receipt_number}`);
+    }
     const orderItems = (items || []).filter((i) => i.order_id === order.id);
     for (const item of orderItems) {
       doc.fontSize(10).fillColor("#333").text(

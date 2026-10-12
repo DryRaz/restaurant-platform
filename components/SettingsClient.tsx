@@ -5,30 +5,27 @@ import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { Restaurant } from "@/lib/tenant";
 
-type PaymentForm = {
-  mpesa_shortcode: string;
-  mpesa_consumer_key: string;
-  mpesa_consumer_secret: string;
-  mpesa_passkey: string;
-  mpesa_env: "sandbox" | "production";
-  mpesa_transaction_type: "CustomerPayBillOnline" | "CustomerBuyGoodsOnline";
-};
-
-const EMPTY: PaymentForm = {
-  mpesa_shortcode: "",
-  mpesa_consumer_key: "",
-  mpesa_consumer_secret: "",
-  mpesa_passkey: "",
-  mpesa_env: "sandbox",
-  mpesa_transaction_type: "CustomerPayBillOnline",
-};
+const inputStyle = {
+  width: "100%",
+  padding: 12,
+  borderRadius: 8,
+  border: "1px solid #ddd",
+  marginBottom: 16,
+  fontFamily: "inherit",
+  fontSize: 16,
+  color: "#1a1a1a",
+  background: "#fff",
+} as const;
 
 export default function SettingsClient({ restaurant }: { restaurant: Restaurant }) {
   const [loading, setLoading] = useState(true);
   const [allowed, setAllowed] = useState(false);
-  const [form, setForm] = useState<PaymentForm>(EMPTY);
+  const [type, setType] = useState<"till" | "paybill">(restaurant.payment_type);
+  const [number, setNumber] = useState(restaurant.payment_number || "");
+  const [account, setAccount] = useState(restaurant.payment_account || "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const supabase = supabaseBrowser();
 
@@ -46,29 +43,7 @@ export default function SettingsClient({ restaurant }: { restaurant: Restaurant 
         .eq("user_id", userData.user.id)
         .maybeSingle();
 
-      if (staffRow?.role !== "owner") {
-        setAllowed(false);
-        setLoading(false);
-        return;
-      }
-      setAllowed(true);
-
-      const { data: config } = await supabase
-        .from("restaurant_payment_config")
-        .select("*")
-        .eq("restaurant_id", restaurant.id)
-        .maybeSingle();
-
-      if (config) {
-        setForm({
-          mpesa_shortcode: config.mpesa_shortcode || "",
-          mpesa_consumer_key: config.mpesa_consumer_key || "",
-          mpesa_consumer_secret: config.mpesa_consumer_secret || "",
-          mpesa_passkey: config.mpesa_passkey || "",
-          mpesa_env: config.mpesa_env,
-          mpesa_transaction_type: config.mpesa_transaction_type,
-        });
-      }
+      setAllowed(staffRow?.role === "owner");
       setLoading(false);
     }
     load();
@@ -77,12 +52,39 @@ export default function SettingsClient({ restaurant }: { restaurant: Restaurant 
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
+    setError(null);
     setSaved(false);
-    await supabase
-      .from("restaurant_payment_config")
-      .upsert({ restaurant_id: restaurant.id, ...form, updated_at: new Date().toISOString() });
+
+    const cleanedNumber = number.replace(/\s+/g, "");
+    const cleanedAccount = account.trim();
+
+    if (cleanedNumber && !/^\d{5,10}$/.test(cleanedNumber)) {
+      setError("The number is 5 to 10 digits, with no letters.");
+      return;
+    }
+    if (type === "paybill" && cleanedNumber && !cleanedAccount) {
+      setError("A Paybill needs an account number too.");
+      return;
+    }
+
+    setSaving(true);
+    const { data, error: saveError } = await supabase
+      .from("restaurants")
+      .update({
+        payment_type: type,
+        payment_number: cleanedNumber || null,
+        payment_account: type === "paybill" ? cleanedAccount || null : null,
+      })
+      .eq("id", restaurant.id)
+      .select("id");
     setSaving(false);
+
+    if (saveError || !data || data.length === 0) {
+      setError("Could not save. Make sure you are signed in as the owner and try again.");
+      return;
+    }
+    setNumber(cleanedNumber);
+    setAccount(type === "paybill" ? cleanedAccount : "");
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   }
@@ -94,69 +96,38 @@ export default function SettingsClient({ restaurant }: { restaurant: Restaurant 
     <div className="container">
       <h1>Payment settings</h1>
       <p>
-        Enter your own Safaricom Daraja credentials here &mdash; get them from{" "}
-        <a href="https://developer.safaricom.co.ke" target="_blank" rel="noreferrer">
-          developer.safaricom.co.ke
-        </a>
-        . Nobody but you enters these.
+        Customers pay from their own M-Pesa app, then enter the confirmation code on the order page. The kitchen sees
+        that code on each order and checks it against your payment notification before preparing it.
       </p>
 
       <form onSubmit={handleSave} className="card">
-        <Field label="Shortcode (Till or PayBill number)" value={form.mpesa_shortcode} onChange={(v) => setForm((f) => ({ ...f, mpesa_shortcode: v }))} />
-        <Field label="Consumer key" value={form.mpesa_consumer_key} onChange={(v) => setForm((f) => ({ ...f, mpesa_consumer_key: v }))} />
-        <Field label="Consumer secret" value={form.mpesa_consumer_secret} type="password" onChange={(v) => setForm((f) => ({ ...f, mpesa_consumer_secret: v }))} />
-        <Field label="Passkey" value={form.mpesa_passkey} type="password" onChange={(v) => setForm((f) => ({ ...f, mpesa_passkey: v }))} />
-
-        <label style={{ display: "block", marginBottom: 4, fontWeight: 600 }}>Environment</label>
+        <label style={{ display: "block", marginBottom: 4, fontWeight: 600 }}>How customers pay</label>
         <select
-          value={form.mpesa_env}
-          onChange={(e) => setForm((f) => ({ ...f, mpesa_env: e.target.value as PaymentForm["mpesa_env"] }))}
-          style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #ddd", marginBottom: 16 }}
+          value={type}
+          onChange={(e) => setType(e.target.value as "till" | "paybill")}
+          style={inputStyle}
         >
-          <option value="sandbox">Sandbox (testing)</option>
-          <option value="production">Production (real payments)</option>
+          <option value="till">Till number (Buy Goods)</option>
+          <option value="paybill">Paybill (business number + account number)</option>
         </select>
 
-        <label style={{ display: "block", marginBottom: 4, fontWeight: 600 }}>Account type</label>
-        <select
-          value={form.mpesa_transaction_type}
-          onChange={(e) =>
-            setForm((f) => ({ ...f, mpesa_transaction_type: e.target.value as PaymentForm["mpesa_transaction_type"] }))
-          }
-          style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #ddd", marginBottom: 16 }}
-        >
-          <option value="CustomerPayBillOnline">PayBill</option>
-          <option value="CustomerBuyGoodsOnline">Till (Buy Goods)</option>
-        </select>
+        <label style={{ display: "block", marginBottom: 4, fontWeight: 600 }}>
+          {type === "paybill" ? "Business number" : "Till number"}
+        </label>
+        <input value={number} onChange={(e) => setNumber(e.target.value)} inputMode="numeric" style={inputStyle} />
 
+        {type === "paybill" && (
+          <>
+            <label style={{ display: "block", marginBottom: 4, fontWeight: 600 }}>Account number</label>
+            <input value={account} onChange={(e) => setAccount(e.target.value)} style={inputStyle} />
+          </>
+        )}
+
+        {error && <p style={{ color: "var(--danger)", marginTop: 0 }}>{error}</p>}
         <button className="btn-primary" type="submit" disabled={saving}>
           {saving ? "Saving..." : saved ? "Saved!" : "Save"}
         </button>
       </form>
     </div>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  type = "text",
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  type?: string;
-}) {
-  return (
-    <>
-      <label style={{ display: "block", marginBottom: 4, fontWeight: 600 }}>{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #ddd", marginBottom: 16 }}
-      />
-    </>
   );
 }

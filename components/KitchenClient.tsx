@@ -14,6 +14,7 @@ type OrderRow = {
   customer_phone: string;
   status: string;
   total: number;
+  mpesa_receipt_number: string | null;
   created_at: string;
 };
 
@@ -78,7 +79,7 @@ export default function KitchenClient({ restaurant }: { restaurant: Restaurant }
     async function loadOrders() {
       const { data } = await supabase
         .from("orders")
-        .select("id, order_number, customer_name, customer_phone, status, total, created_at")
+        .select("id, order_number, customer_name, customer_phone, status, total, mpesa_receipt_number, created_at")
         .eq("restaurant_id", restaurant.id)
         .in("status", ["paid", "preparing", "ready"])
         .order("created_at", { ascending: true });
@@ -89,22 +90,28 @@ export default function KitchenClient({ restaurant }: { restaurant: Restaurant }
 
     const channel = supabase
       .channel(`orders-${restaurant.id}`)
+      // Orders are created unpaid and only reach the kitchen once the
+      // customer submits their M-Pesa code, which flips them to "paid".
+      // That UPDATE is the real "new order" moment, not the INSERT.
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "platform", table: "orders", filter: `restaurant_id=eq.${restaurant.id}` },
-        (payload) => {
-          playNewOrderChime();
-          vibrate([150, 80, 150, 80, 150]);
-          if (document.hidden) flashTabTitle("New order!");
-          setBanner(`🔔 New order!`);
-          setTimeout(() => setBanner(null), 6000);
-          loadOrders();
-        }
+        () => loadOrders()
       )
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "platform", table: "orders", filter: `restaurant_id=eq.${restaurant.id}` },
-        () => loadOrders()
+        (payload) => {
+          loadOrders();
+          const updated = payload.new as { status?: string; order_number?: number | null } | null;
+          if (updated?.status === "paid") {
+            playNewOrderChime();
+            vibrate([150, 80, 150, 80, 150]);
+            if (document.hidden) flashTabTitle("New order!");
+            setBanner(`🔔 New order${updated.order_number ? ` #${updated.order_number}` : ""}!`);
+            setTimeout(() => setBanner(null), 6000);
+          }
+        }
       )
       .subscribe();
 
@@ -240,11 +247,25 @@ function OrderCard({
   return (
     <div className="card">
       <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
-        <span>{order.customer_name || order.customer_phone}</span>
+        <span>
+          {order.order_number ? `#${order.order_number} · ` : ""}
+          {order.customer_name || order.customer_phone}
+        </span>
         <span>
           {restaurant.currency} {order.total.toLocaleString()}
         </span>
       </div>
+      {order.mpesa_receipt_number && (
+        <div style={{ margin: "8px 0", padding: "8px 10px", borderRadius: 8, background: "#fff4d6", fontSize: 14 }}>
+          M-Pesa code:{" "}
+          <span style={{ fontWeight: 700, letterSpacing: "0.08em" }}>{order.mpesa_receipt_number}</span>
+          {order.status === "paid" && (
+            <div style={{ fontSize: 12, color: "var(--muted)" }}>
+              Check the code and amount ({restaurant.currency} {order.total.toLocaleString()}) in your payment notification before preparing.
+            </div>
+          )}
+        </div>
+      )}
       {items.map((item, i) => (
         <div key={i} style={{ padding: "4px 0" }}>
           <div>

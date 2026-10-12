@@ -20,7 +20,7 @@ export default function CheckoutClient({ restaurant }: { restaurant: Restaurant 
   async function handlePay() {
     setError(null);
     if (!phone.trim()) {
-      setError("Enter the phone number to receive the M-Pesa prompt on.");
+      setError("Enter your phone number so we can reach you about your order.");
       return;
     }
     setSubmitting(true);
@@ -52,7 +52,7 @@ export default function CheckoutClient({ restaurant }: { restaurant: Restaurant 
   return (
     <div className="container">
       <h1>Checkout</h1>
-      <p>You&apos;ll get an M-Pesa prompt on your phone to confirm payment.</p>
+      <p>After you place your order, you&apos;ll pay our M-Pesa Till from your phone and enter the confirmation code.</p>
 
       <div className="card">
         <div style={{ fontWeight: 600, marginBottom: 8 }}>Order summary</div>
@@ -97,7 +97,7 @@ export default function CheckoutClient({ restaurant }: { restaurant: Restaurant 
       {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
 
       <button className="btn-primary" onClick={handlePay} disabled={submitting || cart.lines.length === 0}>
-        {submitting ? "Sending M-Pesa prompt..." : "Pay with M-Pesa"}
+        {submitting ? "Placing order..." : "Place order"}
       </button>
     </div>
   );

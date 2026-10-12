@@ -63,7 +63,6 @@ async function main() {
     process.exit(1);
   }
 
-  await supabase.from("restaurant_payment_config").insert({ restaurant_id: restaurant.id });
 
   const tempPassword = randomPassword();
   const { data: userResult, error: userError } = await supabase.auth.admin.createUser({
@@ -89,7 +88,7 @@ async function main() {
   console.log(`  Email:            ${ownerEmail}`);
   console.log(`  Temporary password: ${tempPassword}`);
   console.log(`\nNext steps for the owner: log in at /${slug}/login, then go to /${slug}/kitchen/settings`);
-  console.log("to enter their own M-Pesa Daraja credentials -- nothing works until they do.");
+  console.log("to enter their M-Pesa Till or Paybill details -- customers see them when they pay.");
 }
 
 main();

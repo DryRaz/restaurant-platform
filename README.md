@@ -16,10 +16,15 @@ and Supabase project are untouched.
   `slug.yourdomain.com` (subdomain, once wildcard DNS is set up) or
   `yourdomain.com/slug` (path-based, works immediately, no DNS needed).
   Both work at the same time.
-- **Payments:** each restaurant enters its own M-Pesa Daraja credentials
-  at `/[slug]/kitchen/settings` (owner-only). Nothing is hardcoded or
-  shared between tenants -- STK push requests use whichever
-  restaurant's credentials the order belongs to.
+- **Payments:** manual M-Pesa payment, no Daraja/STK push. Each restaurant
+  is either a Till (Buy Goods) or a Paybill (business number + account
+  number), set at `/[slug]/kitchen/settings` (owner-only). After placing
+  an order the customer sees a pop-up with the payment details and
+  amount, pays from their own M-Pesa app, and pastes the confirmation
+  code. The order then goes to the kitchen as "paid" with the code shown
+  on its card, and staff check it against their payment notification before preparing.
+  The code is not verified against Safaricom; one code can only ever pay
+  for one order (unique index on `orders.mpesa_receipt_number`).
 - **Staff roles:** `owner` (full access + payment settings),
   `admin` (menu management), `kitchen` / `cashier` (order handling).
 
@@ -65,7 +70,7 @@ and Supabase project are untouched.
 ## What's included
 
 - Public ordering flow: menu with categories, sizes/variants, extras,
-  cart, checkout, M-Pesa STK push, live order-status page with
+  cart, checkout, manual M-Pesa Till payment, live order-status page with
   ready-alert (chime + vibration + tab flash), "stay on this page"
   guard.
 - Staff dashboard: login, realtime new-order alerts, order status
