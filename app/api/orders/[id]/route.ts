@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Read-only status lookup for the customer confirmation page. The
  * anon key has no RLS access to `orders` (staff-only), so this route

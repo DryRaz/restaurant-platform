@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
@@ -37,6 +37,10 @@ export default function KitchenClient({ restaurant }: { restaurant: Restaurant }
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [banner, setBanner] = useState<string | null>(null);
   const [generatingReport, setGeneratingReport] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  // Every order id the screen has ever listed. null until the first load, so
+  // orders already waiting when the page opens don't trigger the chime.
+  const seenOrderIds = useRef<Set<string> | null>(null);
   const router = useRouter();
 
   const supabase = supabaseBrowser();
@@ -77,22 +81,48 @@ export default function KitchenClient({ restaurant }: { restaurant: Restaurant }
     if (checkingAuth) return;
 
     async function loadOrders() {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("orders")
         .select("id, order_number, customer_name, customer_phone, status, total, mpesa_receipt_number, created_at")
         .eq("restaurant_id", restaurant.id)
         .in("status", ["paid", "preparing", "ready"])
         .order("created_at", { ascending: true });
-      setOrders(data || []);
+
+      if (error) {
+        // Keep what is already on screen rather than blanking it on a hiccup.
+        setLoadError(true);
+        return;
+      }
+      setLoadError(false);
+      const rows = (data || []) as OrderRow[];
+      setOrders(rows);
+
+      // A new order is one that shows up in "paid" for the first time. This
+      // works the same whether the page learned about it from realtime or
+      // from the polling below, so it can never chime twice or not at all.
+      if (seenOrderIds.current) {
+        const fresh = rows.filter((o) => o.status === "paid" && !seenOrderIds.current!.has(o.id));
+        if (fresh.length > 0) {
+          playNewOrderChime();
+          vibrate([150, 80, 150, 80, 150]);
+          if (document.hidden) flashTabTitle("New order!");
+          const n = fresh[fresh.length - 1].order_number;
+          setBanner(`🔔 New order${n ? ` #${n}` : ""}!`);
+          setTimeout(() => setBanner(null), 6000);
+        }
+      }
+      seenOrderIds.current = new Set([...Array.from(seenOrderIds.current || []), ...rows.map((o) => o.id)]);
     }
 
     loadOrders();
 
+    // Realtime gives instant updates; the poll is the safety net so a new
+    // paid order always appears within a few seconds even if the realtime
+    // connection is down or was never authorised.
+    const poll = setInterval(loadOrders, 5000);
+
     const channel = supabase
       .channel(`orders-${restaurant.id}`)
-      // Orders are created unpaid and only reach the kitchen once the
-      // customer submits their M-Pesa code, which flips them to "paid".
-      // That UPDATE is the real "new order" moment, not the INSERT.
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "platform", table: "orders", filter: `restaurant_id=eq.${restaurant.id}` },
@@ -101,21 +131,12 @@ export default function KitchenClient({ restaurant }: { restaurant: Restaurant }
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "platform", table: "orders", filter: `restaurant_id=eq.${restaurant.id}` },
-        (payload) => {
-          loadOrders();
-          const updated = payload.new as { status?: string; order_number?: number | null } | null;
-          if (updated?.status === "paid") {
-            playNewOrderChime();
-            vibrate([150, 80, 150, 80, 150]);
-            if (document.hidden) flashTabTitle("New order!");
-            setBanner(`🔔 New order${updated.order_number ? ` #${updated.order_number}` : ""}!`);
-            setTimeout(() => setBanner(null), 6000);
-          }
-        }
+        () => loadOrders()
       )
       .subscribe();
 
     return () => {
+      clearInterval(poll);
       supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -188,7 +209,11 @@ export default function KitchenClient({ restaurant }: { restaurant: Restaurant }
         </div>
       )}
 
-      {orders.length === 0 && <p>No active orders right now.</p>}
+      {loadError && (
+        <p style={{ color: "var(--danger)", fontSize: 14 }}>Can&apos;t reach the server &mdash; retrying...</p>
+      )}
+
+      {orders.length === 0 && !loadError && <p>No active orders right now.</p>}
 
       {orders.map((order) => (
         <OrderCard key={order.id} order={order} restaurant={restaurant} onAdvance={() => advance(order)} />

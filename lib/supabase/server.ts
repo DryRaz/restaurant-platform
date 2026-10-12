@@ -23,5 +23,13 @@ export function supabaseServer() {
   return createClient(url, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
     db: { schema: "platform" },
+    // Next.js 14 caches server-side fetch() calls by default, and supabase-js
+    // reads go through fetch(). Without this, the order-status API kept
+    // returning the first status it ever saw ("awaiting_payment"), so the
+    // customer's payment pop-up never closed, and menu or payment-setting
+    // changes took forever to show. Every server read must be live.
+    global: {
+      fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, { ...init, cache: "no-store" }),
+    },
   });
 }
