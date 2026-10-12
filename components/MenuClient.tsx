@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useCart } from "./CartProvider";
 import type { Restaurant } from "@/lib/tenant";
@@ -231,98 +231,106 @@ function ItemModal({
     onClose();
   }
 
+  // Keep the page behind from scrolling while the sheet is open, so scrolling
+  // inside the sheet never drags the menu with it.
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
+
+  const missingChoice = needsChoice && !notes.trim();
+
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.4)",
-        display: "flex",
-        alignItems: "flex-end",
-        zIndex: 20,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="container"
-        style={{ background: "var(--bg)", borderRadius: "16px 16px 0 0", margin: 0, width: "100%" }}
-      >
-        <h2>{item.name}</h2>
-        {item.description && (
-          <p style={{ fontSize: 13, color: "var(--muted)", marginTop: -8 }}>{item.description}</p>
-        )}
+    <div className="item-overlay" onClick={onClose}>
+      <div className="item-sheet" onClick={(e) => e.stopPropagation()}>
+        <button type="button" className="item-close" onClick={onClose} aria-label="Close">
+          &times;
+        </button>
 
-        {needsChoice && (
-          <div style={{ fontWeight: 600, margin: "4px 0 6px" }}>
-            Tell us your choices <span style={{ fontWeight: 400, color: "var(--muted)" }}>(required)</span>
-          </div>
-        )}
-        <textarea
-          className="notes-field"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder={needsChoice ? "e.g. Starter 1, Main 4, Iced tea" : "Notes for the kitchen (optional)"}
-          style={needsChoice ? { borderColor: "var(--brand)", marginBottom: 12 } : { marginBottom: 12 }}
-        />
+        {/* Scrolls on its own; the quantity / Add bar below never scrolls away,
+            so the button is always reachable however long the item is. */}
+        <div className="item-sheet-body">
+          <h2 style={{ margin: "0 32px 8px 0" }}>{item.name}</h2>
+          {item.description && (
+            <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 0 }}>{item.description}</p>
+          )}
 
-        {variants.length > 0 && (
-          <>
-            <div style={{ fontWeight: 600, margin: "12px 0 6px" }}>Size</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {variants.map((v) => (
-                <button
-                  key={v.id}
-                  className={`chip ${v.id === variantId ? "active" : ""}`}
-                  onClick={() => setVariantId(v.id)}
-                >
-                  {v.label} &middot; {formatPrice(v.price, restaurant.currency)}
-                </button>
-              ))}
+          {needsChoice && (
+            <div style={{ fontWeight: 600, margin: "4px 0 6px" }}>
+              Tell us your choices <span style={{ fontWeight: 400, color: "var(--muted)" }}>(required)</span>
             </div>
-          </>
-        )}
+          )}
+          <textarea
+            className="notes-field"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder={needsChoice ? "Write your choices here" : "Notes for the kitchen (optional)"}
+            style={needsChoice ? { borderColor: "var(--brand)", marginBottom: 12 } : { marginBottom: 12 }}
+          />
 
-        {modifiers.length > 0 && (
-          <>
-            <div style={{ fontWeight: 600, margin: "16px 0 6px" }}>Add extras</div>
-            {modifiers.map((m) => (
-              <label
-                key={m.id}
-                style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #eee" }}
-              >
-                <span>
-                  <input
-                    type="checkbox"
-                    checked={selectedModifiers.includes(m.id)}
-                    onChange={() => toggleModifier(m.id)}
-                    style={{ marginRight: 8 }}
-                  />
-                  {m.name}
-                </span>
-                <span style={{ color: "var(--muted)" }}>+{formatPrice(m.price, restaurant.currency)}</span>
-              </label>
-            ))}
-          </>
-        )}
+          {variants.length > 1 && (
+            <>
+              <div style={{ fontWeight: 600, margin: "12px 0 6px" }}>Size</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {variants.map((v) => (
+                  <button
+                    key={v.id}
+                    className={`chip ${v.id === variantId ? "active" : ""}`}
+                    onClick={() => setVariantId(v.id)}
+                  >
+                    {v.label} &middot; {formatPrice(v.price, restaurant.currency)}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
 
-        <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0" }}>
-          <button className="chip" onClick={() => setQuantity((q) => Math.max(1, q - 1))}>
-            &minus;
-          </button>
-          <span>{quantity}</span>
-          <button className="chip" onClick={() => setQuantity((q) => q + 1)}>
-            +
-          </button>
-          <div style={{ flex: 1 }} />
-          <button
-            className="btn-primary"
-            style={{ width: "auto" }}
-            onClick={handleAdd}
-            disabled={!variant || (needsChoice && !notes.trim())}
-          >
-            Add &middot; {formatPrice(lineUnitPrice * quantity, restaurant.currency)}
-          </button>
+          {modifiers.length > 0 && (
+            <>
+              <div style={{ fontWeight: 600, margin: "16px 0 6px" }}>Add extras</div>
+              {modifiers.map((m) => (
+                <label
+                  key={m.id}
+                  style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #eee" }}
+                >
+                  <span>
+                    <input
+                      type="checkbox"
+                      checked={selectedModifiers.includes(m.id)}
+                      onChange={() => toggleModifier(m.id)}
+                      style={{ marginRight: 8 }}
+                    />
+                    {m.name}
+                  </span>
+                  <span style={{ color: "var(--muted)" }}>+{formatPrice(m.price, restaurant.currency)}</span>
+                </label>
+              ))}
+            </>
+          )}
+        </div>
+
+        <div className="item-sheet-footer">
+          {missingChoice && (
+            <div style={{ fontSize: 13, color: "var(--danger)", marginBottom: 8 }}>
+              Write your choices in the box above to add this item.
+            </div>
+          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button className="chip" onClick={() => setQuantity((q) => Math.max(1, q - 1))}>
+              &minus;
+            </button>
+            <span>{quantity}</span>
+            <button className="chip" onClick={() => setQuantity((q) => q + 1)}>
+              +
+            </button>
+            <div style={{ flex: 1 }} />
+            <button className="btn-primary" style={{ width: "auto" }} onClick={handleAdd} disabled={!variant || missingChoice}>
+              Add &middot; {formatPrice(lineUnitPrice * quantity, restaurant.currency)}
+            </button>
+          </div>
         </div>
       </div>
     </div>

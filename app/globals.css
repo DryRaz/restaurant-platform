@@ -318,3 +318,70 @@ h3 {
     align-items: center;
   }
 }
+
+/* Item pop-up (add to cart). A bottom sheet on phones, a centered card on
+   wider screens. The body scrolls inside a capped height and the quantity /
+   Add bar stays pinned, so nothing is ever cut off or out of reach. */
+.item-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.item-sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 560px;
+  max-height: 92vh;
+  max-height: 92dvh;
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.35);
+}
+
+.item-sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 20px 16px 8px;
+}
+
+.item-sheet-footer {
+  flex: 0 0 auto;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid rgba(0, 0, 0, 0.12);
+  background: var(--bg);
+  border-radius: 0 0 16px 16px;
+}
+
+.item-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+  font-size: 22px;
+  line-height: 1;
+}
+
+@media (min-width: 640px) {
+  .item-overlay {
+    align-items: center;
+  }
+  .item-sheet {
+    border-radius: 16px;
+  }
+}
