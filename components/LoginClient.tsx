@@ -10,7 +10,29 @@ export default function LoginClient({ restaurant }: { restaurant: Restaurant }) 
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [mode, setMode] = useState<"login" | "forgot">("login");
+  const [info, setInfo] = useState<string | null>(null);
   const router = useRouter();
+
+  async function handleForgot(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    setInfo(null);
+
+    // Path-based URLs carry /<slug>; subdomain URLs (rewritten by the
+    // middleware) don't, so build the link from where the person actually is.
+    const prefix = window.location.pathname.startsWith(`/${restaurant.slug}`) ? `/${restaurant.slug}` : "";
+    const supabase = supabaseBrowser();
+    await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}${prefix}/reset-password`,
+    });
+
+    // Same message whether or not the account exists, so this form can't
+    // be used to find out which e-mails are registered.
+    setInfo("If an account exists with this e-mail, a reset link has just been sent to it.");
+    setSubmitting(false);
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -44,6 +66,39 @@ export default function LoginClient({ restaurant }: { restaurant: Restaurant }) 
     router.refresh();
   }
 
+  if (mode === "forgot") {
+    return (
+      <div className="container">
+        <h1>{restaurant.name} &mdash; Reset password</h1>
+        <form onSubmit={handleForgot}>
+          <label style={{ display: "block", marginBottom: 4, fontWeight: 600 }}>Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #ddd", marginBottom: 16 }}
+            required
+          />
+          {info && <p>{info}</p>}
+          <button className="btn-primary" type="submit" disabled={submitting}>
+            {submitting ? "Sending..." : "Send reset link"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMode("login");
+              setInfo(null);
+              setError(null);
+            }}
+            style={{ width: "100%", marginTop: 12, background: "none", border: "none", textDecoration: "underline", color: "inherit", fontSize: 14 }}
+          >
+            Back to login
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   return (
     <div className="container">
       <h1>{restaurant.name} &mdash; Staff login</h1>
@@ -67,6 +122,16 @@ export default function LoginClient({ restaurant }: { restaurant: Restaurant }) 
         {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
         <button className="btn-primary" type="submit" disabled={submitting}>
           {submitting ? "Signing in..." : "Sign in"}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setMode("forgot");
+            setError(null);
+          }}
+          style={{ width: "100%", marginTop: 12, background: "none", border: "none", textDecoration: "underline", color: "inherit", fontSize: 14 }}
+        >
+          Forgot your password?
         </button>
       </form>
     </div>
