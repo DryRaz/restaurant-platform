@@ -128,6 +128,13 @@ export default function MenuClient({
             const itemModifierNames = modifiers
               .filter((m) => itemModifiers.some((link) => link.menu_item_id === item.id && link.modifier_id === m.id))
               .map((m) => m.name);
+            const includedPreview = [
+              ...new Set(
+                choiceGroups
+                  .filter((g) => g.menu_item_id === item.id)
+                  .map((g) => g.name.replace(/^Person \d+ · /, "").toLowerCase())
+              ),
+            ].join(", ");
             const extrasPreview =
               itemModifierNames.length > 3
                 ? `${itemModifierNames.slice(0, 3).join(", ")} +${itemModifierNames.length - 3} more`
@@ -146,9 +153,14 @@ export default function MenuClient({
                       .map((v) => formatPrice(v.price, restaurant.currency))
                       .join(" / ")}
                   </div>
+                  {includedPreview && (
+                    <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>
+                      Includes your choice of {includedPreview}
+                    </div>
+                  )}
                   {extrasPreview && (
                     <div style={{ fontSize: 12, color: "var(--brand)", marginTop: 6, fontWeight: 600 }}>
-                      + Extras: {extrasPreview}
+                      + Optional extras: {extrasPreview}
                     </div>
                   )}
                 </div>
@@ -300,52 +312,6 @@ function ItemModal({
             <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 0 }}>{item.description}</p>
           )}
 
-          {choiceGroups.map((g) => {
-            const picked = chosen[g.id] ?? [];
-            const hint =
-              g.max_select === 1
-                ? "choose 1"
-                : g.min_select === g.max_select
-                ? `choose ${g.max_select}`
-                : `up to ${g.max_select}`;
-            return (
-              <div key={g.id} style={{ marginBottom: 12 }}>
-                <div style={{ fontWeight: 600, margin: "4px 0 2px" }}>
-                  {g.name}{" "}
-                  <span style={{ fontWeight: 400, color: "var(--muted)", fontSize: 13 }}>
-                    ({hint}
-                    {g.min_select > 0 ? ", required" : ""})
-                  </span>
-                </div>
-                {optionsByGroup(g.id).map((o) => (
-                  <label
-                    key={o.id}
-                    style={{ display: "flex", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #eee" }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={picked.includes(o.id)}
-                      onChange={() => toggleChoice(g, o.id)}
-                      style={{ marginRight: 8 }}
-                    />
-                    {o.label}
-                  </label>
-                ))}
-              </div>
-            );
-          })}
-
-          <div style={{ fontWeight: 600, margin: "4px 0 6px" }}>
-            Special requests <span style={{ fontWeight: 400, color: "var(--muted)" }}>(optional)</span>
-          </div>
-          <textarea
-            className="notes-field"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="e.g. no onions, extra sauce…"
-            style={{ marginBottom: 12 }}
-          />
-
           {variants.length > 1 && (
             <>
               <div style={{ fontWeight: 600, margin: "12px 0 6px" }}>Size</div>
@@ -363,14 +329,59 @@ function ItemModal({
             </>
           )}
 
+          {/* What the price already covers -- kept visually apart from the paid
+              extras below so nobody thinks picking a side costs more. */}
+          {choiceGroups.length > 0 && (
+            <section className="choice-panel included-panel">
+              <div className="choice-panel-title">
+                Included in your order
+                <span className="tag-included">No extra charge</span>
+              </div>
+              {choiceGroups.map((g) => {
+                const picked = chosen[g.id] ?? [];
+                const missing = picked.length < g.min_select;
+                const hint =
+                  g.max_select === 1
+                    ? "choose 1"
+                    : g.min_select === g.max_select
+                    ? `choose ${g.max_select}`
+                    : `up to ${g.max_select}`;
+                return (
+                  <div key={g.id} className="choice-group">
+                    <div className="choice-group-title">
+                      {g.name}
+                      <span className={missing ? "choice-hint missing" : "choice-hint"}>
+                        {missing ? `${hint} · required` : "✓"}
+                      </span>
+                    </div>
+                    {optionsByGroup(g.id).map((o) => (
+                      <label key={o.id} className={`option-row ${picked.includes(o.id) ? "selected" : ""}`}>
+                        <span>
+                          <input
+                            type="checkbox"
+                            checked={picked.includes(o.id)}
+                            onChange={() => toggleChoice(g, o.id)}
+                            style={{ marginRight: 8 }}
+                          />
+                          {o.label}
+                        </span>
+                        <span className="option-price included">Included</span>
+                      </label>
+                    ))}
+                  </div>
+                );
+              })}
+            </section>
+          )}
+
           {modifiers.length > 0 && (
-            <>
-              <div style={{ fontWeight: 600, margin: "16px 0 6px" }}>Add extras</div>
+            <section className="choice-panel extras-panel">
+              <div className="choice-panel-title">
+                Add extras
+                <span className="tag-extra">Optional · added to the price</span>
+              </div>
               {modifiers.map((m) => (
-                <label
-                  key={m.id}
-                  style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #eee" }}
-                >
+                <label key={m.id} className={`option-row ${selectedModifiers.includes(m.id) ? "selected" : ""}`}>
                   <span>
                     <input
                       type="checkbox"
@@ -380,11 +391,22 @@ function ItemModal({
                     />
                     {m.name}
                   </span>
-                  <span style={{ color: "var(--muted)" }}>+{formatPrice(m.price, restaurant.currency)}</span>
+                  <span className="option-price">+{formatPrice(m.price, restaurant.currency)}</span>
                 </label>
               ))}
-            </>
+            </section>
           )}
+
+          <div style={{ fontWeight: 600, margin: "16px 0 6px" }}>
+            Special requests <span style={{ fontWeight: 400, color: "var(--muted)" }}>(optional)</span>
+          </div>
+          <textarea
+            className="notes-field"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="e.g. no onions, extra sauce…"
+            style={{ marginBottom: 12 }}
+          />
         </div>
 
         <div className="item-sheet-footer">
