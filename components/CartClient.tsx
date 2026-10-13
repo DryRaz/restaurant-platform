@@ -29,6 +29,11 @@ export default function CartClient({ restaurant }: { restaurant: Restaurant }) {
                 {line.name}
                 {line.variantLabel ? ` \u00b7 ${line.variantLabel}` : ""}
               </div>
+              {(line.choices ?? []).map((c) => (
+                <div key={c.optionId} style={{ fontSize: 13, color: "var(--muted)" }}>
+                  {c.group}: {c.label}
+                </div>
+              ))}
               {line.modifiers.map((m) => (
                 <div key={m.id} style={{ fontSize: 13, color: "var(--muted)" }}>
                   {m.name} {m.price > 0 ? `(+${formatPrice(m.price, restaurant.currency)})` : ""}
@@ -46,7 +51,7 @@ export default function CartClient({ restaurant }: { restaurant: Restaurant }) {
             className="notes-field"
             value={line.notes}
             onChange={(e) => cart.setNotes(line.key, e.target.value)}
-            placeholder="Notes for the kitchen (optional)"
+            placeholder="Special requests (optional)"
             style={{ marginTop: 10 }}
           />
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>

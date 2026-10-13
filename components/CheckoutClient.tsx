@@ -65,6 +65,11 @@ export default function CheckoutClient({ restaurant }: { restaurant: Restaurant 
               </span>
               <span>{formatPrice(lineTotal(line), restaurant.currency)}</span>
             </div>
+            {(line.choices ?? []).map((c) => (
+              <div key={c.optionId} style={{ fontSize: 13, color: "var(--muted)" }}>
+                {c.group}: {c.label}
+              </div>
+            ))}
             {line.notes && (
               <div style={{ fontSize: 13, color: "var(--muted)", fontStyle: "italic" }}>{line.notes}</div>
             )}

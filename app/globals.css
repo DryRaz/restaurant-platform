@@ -385,3 +385,83 @@ h3 {
     border-radius: 16px;
   }
 }
+
+/* Item pop-up: included choices vs paid extras, kept visually distinct. */
+.choice-panel {
+  border-radius: 12px;
+  padding: 12px 14px 4px;
+  margin: 14px 0 4px;
+}
+.included-panel {
+  background: color-mix(in srgb, var(--brand) 7%, white);
+  border: 2px solid var(--brand);
+}
+.extras-panel {
+  background: #fafafa;
+  border: 1px dashed #c9c9c9;
+}
+.choice-panel-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.tag-included,
+.tag-extra {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.tag-included {
+  background: var(--brand);
+  color: white;
+}
+.tag-extra {
+  background: #ececec;
+  color: var(--muted);
+}
+.choice-group + .choice-group {
+  margin-top: 8px;
+}
+.choice-group-title {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 14px;
+  margin: 4px 0 2px;
+}
+.choice-hint {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--brand);
+}
+.choice-hint.missing {
+  color: var(--danger);
+}
+.option-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  cursor: pointer;
+}
+.option-row:last-child {
+  border-bottom: none;
+}
+.option-row.selected {
+  font-weight: 600;
+}
+.option-price {
+  color: var(--muted);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.option-price.included {
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 600;
+}

@@ -23,6 +23,15 @@ type Item = {
 type Variant = { id: string; menu_item_id: string; label: string; price: number };
 type ItemModifierLink = { menu_item_id: string; modifier_id: string };
 type Modifier = { id: string; name: string; price: number };
+type ChoiceGroup = {
+  id: string;
+  menu_item_id: string;
+  name: string;
+  min_select: number;
+  max_select: number;
+  sort_order: number;
+};
+type ChoiceOption = { id: string; group_id: string; label: string; sort_order: number };
 
 function formatPrice(amount: number, currency: string) {
   return `${currency} ${amount.toLocaleString()}`;
@@ -47,6 +56,8 @@ export default function MenuClient({
   variants,
   itemModifiers,
   modifiers,
+  choiceGroups,
+  choiceOptions,
 }: {
   restaurant: Restaurant;
   categories: Category[];
@@ -54,6 +65,8 @@ export default function MenuClient({
   variants: Variant[];
   itemModifiers: ItemModifierLink[];
   modifiers: Modifier[];
+  choiceGroups: ChoiceGroup[];
+  choiceOptions: ChoiceOption[];
 }) {
   const [activeCategory, setActiveCategory] = useState(categories[0]?.id ?? "");
   const [openItem, setOpenItem] = useState<Item | null>(null);
@@ -115,6 +128,13 @@ export default function MenuClient({
             const itemModifierNames = modifiers
               .filter((m) => itemModifiers.some((link) => link.menu_item_id === item.id && link.modifier_id === m.id))
               .map((m) => m.name);
+            const includedPreview = [
+              ...new Set(
+                choiceGroups
+                  .filter((g) => g.menu_item_id === item.id)
+                  .map((g) => g.name.replace(/^Person \d+ · /, "").toLowerCase())
+              ),
+            ].join(", ");
             const extrasPreview =
               itemModifierNames.length > 3
                 ? `${itemModifierNames.slice(0, 3).join(", ")} +${itemModifierNames.length - 3} more`
@@ -133,9 +153,14 @@ export default function MenuClient({
                       .map((v) => formatPrice(v.price, restaurant.currency))
                       .join(" / ")}
                   </div>
+                  {includedPreview && (
+                    <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>
+                      Includes your choice of {includedPreview}
+                    </div>
+                  )}
                   {extrasPreview && (
                     <div style={{ fontSize: 12, color: "var(--brand)", marginTop: 6, fontWeight: 600 }}>
-                      + Extras: {extrasPreview}
+                      + Optional extras: {extrasPreview}
                     </div>
                   )}
                 </div>
@@ -178,6 +203,8 @@ export default function MenuClient({
           modifiers={modifiers.filter((m) =>
             itemModifiers.some((link) => link.menu_item_id === openItem.id && link.modifier_id === m.id)
           )}
+          choiceGroups={choiceGroups.filter((g) => g.menu_item_id === openItem.id)}
+          choiceOptions={choiceOptions}
           onClose={() => setOpenItem(null)}
         />
       )}
@@ -190,20 +217,41 @@ function ItemModal({
   restaurant,
   variants,
   modifiers,
+  choiceGroups,
+  choiceOptions,
   onClose,
 }: {
   item: Item;
   restaurant: Restaurant;
   variants: Variant[];
   modifiers: Modifier[];
+  choiceGroups: ChoiceGroup[];
+  choiceOptions: ChoiceOption[];
   onClose: () => void;
 }) {
   const [variantId, setVariantId] = useState(variants[0]?.id ?? "");
   const [selectedModifiers, setSelectedModifiers] = useState<string[]>([]);
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
+  // Ticked option ids, per choice group.
+  const [chosen, setChosen] = useState<Record<string, string[]>>({});
   const cart = useCart();
-  const needsChoice = /choice|choose|pick one|tell us/i.test(item.description || "");
+
+  const optionsByGroup = (groupId: string) => choiceOptions.filter((o) => o.group_id === groupId);
+  const missingGroups = choiceGroups.filter((g) => (chosen[g.id]?.length ?? 0) < g.min_select);
+
+  function toggleChoice(group: ChoiceGroup, optionId: string) {
+    setChosen((prev) => {
+      const current = prev[group.id] ?? [];
+      if (current.includes(optionId)) {
+        return { ...prev, [group.id]: current.filter((id) => id !== optionId) };
+      }
+      // Single-choice group: ticking another box swaps the choice.
+      if (group.max_select === 1) return { ...prev, [group.id]: [optionId] };
+      if (current.length >= group.max_select) return prev;
+      return { ...prev, [group.id]: [...current, optionId] };
+    });
+  }
 
   const variant = variants.find((v) => v.id === variantId);
   const chosenModifiers = modifiers.filter((m) => selectedModifiers.includes(m.id));
@@ -214,8 +262,14 @@ function ItemModal({
   }
 
   function handleAdd() {
-    if (!variant) return;
-    const key = `${item.id}:${variant.label}:${[...selectedModifiers].sort().join(",")}`;
+    if (!variant || missingGroups.length > 0) return;
+    const choices = choiceGroups.flatMap((g) =>
+      optionsByGroup(g.id)
+        .filter((o) => chosen[g.id]?.includes(o.id))
+        .map((o) => ({ optionId: o.id, group: g.name, label: o.label }))
+    );
+    const choiceKey = choices.map((c) => c.optionId).join(",");
+    const key = `${item.id}:${variant.label}:${[...selectedModifiers].sort().join(",")}:${choiceKey}`;
     cart.addLine(
       {
         key,
@@ -224,6 +278,7 @@ function ItemModal({
         variantLabel: variant.label,
         unitPrice: variant.price,
         modifiers: chosenModifiers.map((m) => ({ id: m.id, name: m.name, price: m.price })),
+        choices,
         notes,
       },
       quantity
@@ -241,7 +296,6 @@ function ItemModal({
     };
   }, []);
 
-  const missingChoice = needsChoice && !notes.trim();
 
   return (
     <div className="item-overlay" onClick={onClose}>
@@ -257,19 +311,6 @@ function ItemModal({
           {item.description && (
             <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 0 }}>{item.description}</p>
           )}
-
-          {needsChoice && (
-            <div style={{ fontWeight: 600, margin: "4px 0 6px" }}>
-              Tell us your choices <span style={{ fontWeight: 400, color: "var(--muted)" }}>(required)</span>
-            </div>
-          )}
-          <textarea
-            className="notes-field"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder={needsChoice ? "Write your choices here" : "Notes for the kitchen (optional)"}
-            style={needsChoice ? { borderColor: "var(--brand)", marginBottom: 12 } : { marginBottom: 12 }}
-          />
 
           {variants.length > 1 && (
             <>
@@ -288,14 +329,59 @@ function ItemModal({
             </>
           )}
 
+          {/* What the price already covers -- kept visually apart from the paid
+              extras below so nobody thinks picking a side costs more. */}
+          {choiceGroups.length > 0 && (
+            <section className="choice-panel included-panel">
+              <div className="choice-panel-title">
+                Included in your order
+                <span className="tag-included">No extra charge</span>
+              </div>
+              {choiceGroups.map((g) => {
+                const picked = chosen[g.id] ?? [];
+                const missing = picked.length < g.min_select;
+                const hint =
+                  g.max_select === 1
+                    ? "choose 1"
+                    : g.min_select === g.max_select
+                    ? `choose ${g.max_select}`
+                    : `up to ${g.max_select}`;
+                return (
+                  <div key={g.id} className="choice-group">
+                    <div className="choice-group-title">
+                      {g.name}
+                      <span className={missing ? "choice-hint missing" : "choice-hint"}>
+                        {missing ? `${hint} · required` : "✓"}
+                      </span>
+                    </div>
+                    {optionsByGroup(g.id).map((o) => (
+                      <label key={o.id} className={`option-row ${picked.includes(o.id) ? "selected" : ""}`}>
+                        <span>
+                          <input
+                            type="checkbox"
+                            checked={picked.includes(o.id)}
+                            onChange={() => toggleChoice(g, o.id)}
+                            style={{ marginRight: 8 }}
+                          />
+                          {o.label}
+                        </span>
+                        <span className="option-price included">Included</span>
+                      </label>
+                    ))}
+                  </div>
+                );
+              })}
+            </section>
+          )}
+
           {modifiers.length > 0 && (
-            <>
-              <div style={{ fontWeight: 600, margin: "16px 0 6px" }}>Add extras</div>
+            <section className="choice-panel extras-panel">
+              <div className="choice-panel-title">
+                Add extras
+                <span className="tag-extra">Optional · added to the price</span>
+              </div>
               {modifiers.map((m) => (
-                <label
-                  key={m.id}
-                  style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #eee" }}
-                >
+                <label key={m.id} className={`option-row ${selectedModifiers.includes(m.id) ? "selected" : ""}`}>
                   <span>
                     <input
                       type="checkbox"
@@ -305,17 +391,28 @@ function ItemModal({
                     />
                     {m.name}
                   </span>
-                  <span style={{ color: "var(--muted)" }}>+{formatPrice(m.price, restaurant.currency)}</span>
+                  <span className="option-price">+{formatPrice(m.price, restaurant.currency)}</span>
                 </label>
               ))}
-            </>
+            </section>
           )}
+
+          <div style={{ fontWeight: 600, margin: "16px 0 6px" }}>
+            Special requests <span style={{ fontWeight: 400, color: "var(--muted)" }}>(optional)</span>
+          </div>
+          <textarea
+            className="notes-field"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="e.g. no onions, extra sauce…"
+            style={{ marginBottom: 12 }}
+          />
         </div>
 
         <div className="item-sheet-footer">
-          {missingChoice && (
+          {missingGroups.length > 0 && (
             <div style={{ fontSize: 13, color: "var(--danger)", marginBottom: 8 }}>
-              Write your choices in the box above to add this item.
+              Choose your {missingGroups.map((g) => g.name.toLowerCase()).join(", ")} to add this item.
             </div>
           )}
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -327,7 +424,7 @@ function ItemModal({
               +
             </button>
             <div style={{ flex: 1 }} />
-            <button className="btn-primary" style={{ width: "auto" }} onClick={handleAdd} disabled={!variant || missingChoice}>
+            <button className="btn-primary" style={{ width: "auto" }} onClick={handleAdd} disabled={!variant || missingGroups.length > 0}>
               Add &middot; {formatPrice(lineUnitPrice * quantity, restaurant.currency)}
             </button>
           </div>

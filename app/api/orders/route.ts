@@ -6,6 +6,7 @@ type IncomingLine = {
   variantLabel: string | null;
   quantity: number;
   modifiers: { id: string }[];
+  choices?: { optionId: string }[];
   notes?: string;
 };
 
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
   const itemIds = [...new Set(lines.map((l) => l.menuItemId))];
   const modifierIds = [...new Set(lines.flatMap((l) => (l.modifiers || []).map((m) => m.id)))];
 
-  const [{ data: items }, { data: variants }, { data: modifiers }, { data: links }] = await Promise.all([
+  const [{ data: items }, { data: variants }, { data: modifiers }, { data: links }, { data: choiceGroups }] = await Promise.all([
     supabase
       .from("menu_items")
       .select("id, name, available")
@@ -60,6 +61,12 @@ export async function POST(req: NextRequest) {
       ? supabase.from("modifiers").select("id, name, price").eq("restaurant_id", restaurant.id).in("id", modifierIds)
       : Promise.resolve({ data: [] as { id: string; name: string; price: number }[] }),
     supabase.from("menu_item_modifiers").select("menu_item_id, modifier_id").in("menu_item_id", itemIds),
+    supabase
+      .from("choice_groups")
+      .select("id, menu_item_id, name, min_select, max_select, sort_order, choice_options(id, label, sort_order)")
+      .eq("restaurant_id", restaurant.id)
+      .in("menu_item_id", itemIds)
+      .order("sort_order"),
   ]);
 
   const itemById = new Map((items || []).map((i) => [i.id, i]));
@@ -102,13 +109,39 @@ export async function POST(req: NextRequest) {
       resolvedModifiers.push({ name: modifier.name, price: Number(modifier.price) });
     }
 
+    // Ticked choices (e.g. a combo's side and drink): every option must belong
+    // to one of this item's groups, and each group must be within its limits.
+    // They're written into the line's notes ("Side: Coleslaw · Drink: ...") so
+    // the kitchen, order page and daily report show them with no extra work.
+    const chosenIds = new Set((line.choices || []).map((c) => c.optionId));
+    const itemGroups = (choiceGroups || []).filter((g) => g.menu_item_id === item.id);
+    const knownIds = new Set(itemGroups.flatMap((g) => (g.choice_options || []).map((o) => o.id)));
+    if ([...chosenIds].some((id) => !knownIds.has(id))) return stale;
+
+    const choiceParts: string[] = [];
+    for (const group of itemGroups) {
+      const picked = [...(group.choice_options || [])]
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .filter((o) => chosenIds.has(o.id));
+      if (picked.length < group.min_select || picked.length > group.max_select) {
+        return NextResponse.json(
+          { error: `Please choose your ${group.name.toLowerCase()} for ${item.name}.` },
+          { status: 400 }
+        );
+      }
+      if (picked.length > 0) choiceParts.push(`${group.name}: ${picked.map((o) => o.label).join(", ")}`);
+    }
+
+    const customerNotes = typeof line.notes === "string" ? line.notes.trim().slice(0, 500) : "";
+    const notes = [choiceParts.join(" · "), customerNotes].filter(Boolean).join(" — ");
+
     resolved.push({
       menuItemId: item.id,
       name: item.name,
       variantLabel: variant.label,
       unitPrice: Number(variant.price),
       quantity: line.quantity,
-      notes: typeof line.notes === "string" && line.notes.trim() ? line.notes.trim().slice(0, 500) : null,
+      notes: notes || null,
       modifiers: resolvedModifiers,
     });
   }
