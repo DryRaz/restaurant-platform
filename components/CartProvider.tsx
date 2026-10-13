@@ -3,14 +3,17 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 export type CartModifier = { id: string; name: string; price: number };
+// A free choice ticked for the item (e.g. a combo's side), no price impact.
+export type CartChoice = { optionId: string; group: string; label: string };
 export type CartLine = {
-  key: string; // menuItemId + variantLabel + sorted modifier ids, for merging identical lines
+  key: string; // menuItemId + variantLabel + sorted modifier and choice ids, for merging identical lines
   menuItemId: string;
   name: string;
   variantLabel: string | null;
   unitPrice: number;
   quantity: number;
   modifiers: CartModifier[];
+  choices?: CartChoice[]; // optional: carts saved before choices existed have none
   notes: string;
 };
 

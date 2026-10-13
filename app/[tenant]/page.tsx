@@ -10,8 +10,15 @@ export default async function MenuPage({ params }: { params: { tenant: string } 
 
   const supabase = supabaseServer();
 
-  const [{ data: categories }, { data: items }, { data: variants }, { data: itemModifiers }, { data: modifiers }] =
-    await Promise.all([
+  const [
+    { data: categories },
+    { data: items },
+    { data: variants },
+    { data: itemModifiers },
+    { data: modifiers },
+    { data: choiceGroups },
+    { data: choiceOptions },
+  ] = await Promise.all([
       supabase
         .from("menu_categories")
         .select("id, name, sort_order, background_color, text_color")
@@ -32,6 +39,16 @@ export default async function MenuPage({ params }: { params: { tenant: string } 
         .select("menu_item_id, modifier_id")
         .eq("restaurant_id", restaurant.id),
       supabase.from("modifiers").select("id, name, price").eq("restaurant_id", restaurant.id),
+      supabase
+        .from("choice_groups")
+        .select("id, menu_item_id, name, min_select, max_select, sort_order")
+        .eq("restaurant_id", restaurant.id)
+        .order("sort_order"),
+      supabase
+        .from("choice_options")
+        .select("id, group_id, label, sort_order")
+        .eq("restaurant_id", restaurant.id)
+        .order("sort_order"),
     ]);
 
   return (
@@ -43,6 +60,8 @@ export default async function MenuPage({ params }: { params: { tenant: string } 
         variants={variants || []}
         itemModifiers={itemModifiers || []}
         modifiers={modifiers || []}
+        choiceGroups={choiceGroups || []}
+        choiceOptions={choiceOptions || []}
       />
     </CartProvider>
   );

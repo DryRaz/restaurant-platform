@@ -23,6 +23,15 @@ type Item = {
 type Variant = { id: string; menu_item_id: string; label: string; price: number };
 type ItemModifierLink = { menu_item_id: string; modifier_id: string };
 type Modifier = { id: string; name: string; price: number };
+type ChoiceGroup = {
+  id: string;
+  menu_item_id: string;
+  name: string;
+  min_select: number;
+  max_select: number;
+  sort_order: number;
+};
+type ChoiceOption = { id: string; group_id: string; label: string; sort_order: number };
 
 function formatPrice(amount: number, currency: string) {
   return `${currency} ${amount.toLocaleString()}`;
@@ -47,6 +56,8 @@ export default function MenuClient({
   variants,
   itemModifiers,
   modifiers,
+  choiceGroups,
+  choiceOptions,
 }: {
   restaurant: Restaurant;
   categories: Category[];
@@ -54,6 +65,8 @@ export default function MenuClient({
   variants: Variant[];
   itemModifiers: ItemModifierLink[];
   modifiers: Modifier[];
+  choiceGroups: ChoiceGroup[];
+  choiceOptions: ChoiceOption[];
 }) {
   const [activeCategory, setActiveCategory] = useState(categories[0]?.id ?? "");
   const [openItem, setOpenItem] = useState<Item | null>(null);
@@ -178,6 +191,8 @@ export default function MenuClient({
           modifiers={modifiers.filter((m) =>
             itemModifiers.some((link) => link.menu_item_id === openItem.id && link.modifier_id === m.id)
           )}
+          choiceGroups={choiceGroups.filter((g) => g.menu_item_id === openItem.id)}
+          choiceOptions={choiceOptions}
           onClose={() => setOpenItem(null)}
         />
       )}
@@ -190,20 +205,41 @@ function ItemModal({
   restaurant,
   variants,
   modifiers,
+  choiceGroups,
+  choiceOptions,
   onClose,
 }: {
   item: Item;
   restaurant: Restaurant;
   variants: Variant[];
   modifiers: Modifier[];
+  choiceGroups: ChoiceGroup[];
+  choiceOptions: ChoiceOption[];
   onClose: () => void;
 }) {
   const [variantId, setVariantId] = useState(variants[0]?.id ?? "");
   const [selectedModifiers, setSelectedModifiers] = useState<string[]>([]);
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
+  // Ticked option ids, per choice group.
+  const [chosen, setChosen] = useState<Record<string, string[]>>({});
   const cart = useCart();
-  const needsChoice = /choice|choose|pick one|tell us/i.test(item.description || "");
+
+  const optionsByGroup = (groupId: string) => choiceOptions.filter((o) => o.group_id === groupId);
+  const missingGroups = choiceGroups.filter((g) => (chosen[g.id]?.length ?? 0) < g.min_select);
+
+  function toggleChoice(group: ChoiceGroup, optionId: string) {
+    setChosen((prev) => {
+      const current = prev[group.id] ?? [];
+      if (current.includes(optionId)) {
+        return { ...prev, [group.id]: current.filter((id) => id !== optionId) };
+      }
+      // Single-choice group: ticking another box swaps the choice.
+      if (group.max_select === 1) return { ...prev, [group.id]: [optionId] };
+      if (current.length >= group.max_select) return prev;
+      return { ...prev, [group.id]: [...current, optionId] };
+    });
+  }
 
   const variant = variants.find((v) => v.id === variantId);
   const chosenModifiers = modifiers.filter((m) => selectedModifiers.includes(m.id));
@@ -214,8 +250,14 @@ function ItemModal({
   }
 
   function handleAdd() {
-    if (!variant) return;
-    const key = `${item.id}:${variant.label}:${[...selectedModifiers].sort().join(",")}`;
+    if (!variant || missingGroups.length > 0) return;
+    const choices = choiceGroups.flatMap((g) =>
+      optionsByGroup(g.id)
+        .filter((o) => chosen[g.id]?.includes(o.id))
+        .map((o) => ({ optionId: o.id, group: g.name, label: o.label }))
+    );
+    const choiceKey = choices.map((c) => c.optionId).join(",");
+    const key = `${item.id}:${variant.label}:${[...selectedModifiers].sort().join(",")}:${choiceKey}`;
     cart.addLine(
       {
         key,
@@ -224,6 +266,7 @@ function ItemModal({
         variantLabel: variant.label,
         unitPrice: variant.price,
         modifiers: chosenModifiers.map((m) => ({ id: m.id, name: m.name, price: m.price })),
+        choices,
         notes,
       },
       quantity
@@ -241,7 +284,6 @@ function ItemModal({
     };
   }, []);
 
-  const missingChoice = needsChoice && !notes.trim();
 
   return (
     <div className="item-overlay" onClick={onClose}>
@@ -258,17 +300,50 @@ function ItemModal({
             <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 0 }}>{item.description}</p>
           )}
 
-          {needsChoice && (
-            <div style={{ fontWeight: 600, margin: "4px 0 6px" }}>
-              Tell us your choices <span style={{ fontWeight: 400, color: "var(--muted)" }}>(required)</span>
-            </div>
-          )}
+          {choiceGroups.map((g) => {
+            const picked = chosen[g.id] ?? [];
+            const hint =
+              g.max_select === 1
+                ? "choose 1"
+                : g.min_select === g.max_select
+                ? `choose ${g.max_select}`
+                : `up to ${g.max_select}`;
+            return (
+              <div key={g.id} style={{ marginBottom: 12 }}>
+                <div style={{ fontWeight: 600, margin: "4px 0 2px" }}>
+                  {g.name}{" "}
+                  <span style={{ fontWeight: 400, color: "var(--muted)", fontSize: 13 }}>
+                    ({hint}
+                    {g.min_select > 0 ? ", required" : ""})
+                  </span>
+                </div>
+                {optionsByGroup(g.id).map((o) => (
+                  <label
+                    key={o.id}
+                    style={{ display: "flex", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #eee" }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={picked.includes(o.id)}
+                      onChange={() => toggleChoice(g, o.id)}
+                      style={{ marginRight: 8 }}
+                    />
+                    {o.label}
+                  </label>
+                ))}
+              </div>
+            );
+          })}
+
+          <div style={{ fontWeight: 600, margin: "4px 0 6px" }}>
+            Special requests <span style={{ fontWeight: 400, color: "var(--muted)" }}>(optional)</span>
+          </div>
           <textarea
             className="notes-field"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder={needsChoice ? "Write your choices here" : "Notes for the kitchen (optional)"}
-            style={needsChoice ? { borderColor: "var(--brand)", marginBottom: 12 } : { marginBottom: 12 }}
+            placeholder="e.g. no onions, extra sauce…"
+            style={{ marginBottom: 12 }}
           />
 
           {variants.length > 1 && (
@@ -313,9 +388,9 @@ function ItemModal({
         </div>
 
         <div className="item-sheet-footer">
-          {missingChoice && (
+          {missingGroups.length > 0 && (
             <div style={{ fontSize: 13, color: "var(--danger)", marginBottom: 8 }}>
-              Write your choices in the box above to add this item.
+              Choose your {missingGroups.map((g) => g.name.toLowerCase()).join(", ")} to add this item.
             </div>
           )}
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -327,7 +402,7 @@ function ItemModal({
               +
             </button>
             <div style={{ flex: 1 }} />
-            <button className="btn-primary" style={{ width: "auto" }} onClick={handleAdd} disabled={!variant || missingChoice}>
+            <button className="btn-primary" style={{ width: "auto" }} onClick={handleAdd} disabled={!variant || missingGroups.length > 0}>
               Add &middot; {formatPrice(lineUnitPrice * quantity, restaurant.currency)}
             </button>
           </div>
