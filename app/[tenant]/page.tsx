@@ -21,7 +21,7 @@ export default async function MenuPage({ params }: { params: { tenant: string } 
   ] = await Promise.all([
       supabase
         .from("menu_categories")
-        .select("id, name, sort_order, background_color, text_color")
+        .select("id, name, sort_order, background_color, text_color, note")
         .eq("restaurant_id", restaurant.id)
         .order("sort_order"),
       supabase

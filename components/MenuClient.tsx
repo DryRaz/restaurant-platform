@@ -11,6 +11,7 @@ type Category = {
   sort_order: number;
   background_color: string | null;
   text_color: string | null;
+  note: string | null; // shown under the section title, e.g. "Drinks are not included."
 };
 type Item = {
   id: string;
@@ -123,6 +124,7 @@ export default function MenuClient({
 
         <div className="container" style={{ paddingBottom: cart.itemCount ? 96 : 16, position: "relative" }}>
           {activeCat && <h2 className="section-title">{activeCat.name}</h2>}
+          {activeCat?.note && <p className="section-note">{activeCat.note}</p>}
 
           {visibleItems.map((item) => {
             const itemModifierNames = modifiers
