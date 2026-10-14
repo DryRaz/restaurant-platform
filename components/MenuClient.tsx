@@ -19,6 +19,7 @@ type Item = {
   name: string;
   description: string | null;
   image_url: string | null;
+  gluten_free: boolean;
   available: boolean;
 };
 type Variant = { id: string; menu_item_id: string; label: string; price: number };
@@ -145,7 +146,10 @@ export default function MenuClient({
             return (
               <div key={item.id} className="card" style={{ display: "flex", justifyContent: "space-between" }}>
                 <div>
-                  <div style={{ fontWeight: 600 }}>{item.name}</div>
+                  <div style={{ fontWeight: 600 }}>
+                    {item.name}
+                    {item.gluten_free && <span className="badge-gluten-free">Gluten free</span>}
+                  </div>
                   {item.description && (
                     <div style={{ fontSize: 13, color: "var(--muted)" }}>{item.description}</div>
                   )}
@@ -310,6 +314,11 @@ function ItemModal({
             so the button is always reachable however long the item is. */}
         <div className="item-sheet-body">
           <h2 style={{ margin: "0 32px 8px 0" }}>{item.name}</h2>
+          {item.gluten_free && (
+            <div style={{ margin: "-4px 0 8px" }}>
+              <span className="badge-gluten-free" style={{ marginLeft: 0 }}>Gluten free</span>
+            </div>
+          )}
           {item.description && (
             <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 0 }}>{item.description}</p>
           )}

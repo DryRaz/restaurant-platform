@@ -26,7 +26,7 @@ export default async function MenuPage({ params }: { params: { tenant: string } 
         .order("sort_order"),
       supabase
         .from("menu_items")
-        .select("id, category_id, name, description, image_url, available, sort_order")
+        .select("id, category_id, name, description, image_url, available, sort_order, gluten_free")
         .eq("restaurant_id", restaurant.id)
         .eq("available", true)
         .order("sort_order"),
