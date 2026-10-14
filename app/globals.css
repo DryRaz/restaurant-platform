@@ -465,3 +465,14 @@ h3 {
   font-size: 12px;
   font-weight: 600;
 }
+
+/* Short notice under a menu section's title (e.g. "Drinks are not included."). */
+.section-note {
+  margin: -4px 0 14px;
+  padding: 8px 12px;
+  border-left: 3px solid currentColor;
+  background: rgba(127, 127, 127, 0.14);
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
